@@ -6,17 +6,14 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Eye, EyeOff, AlertCircle } from "lucide-react";
+import { useAuth } from '@/contexts/AuthContext';
 
-interface LoginPageProps {
-  onLogin: (userType: 'admin' | 'professor' | 'aluno') => void;
-}
-
-const LoginPage = ({ onLogin }: LoginPageProps) => {
+const LoginPage = () => {
+  const { signIn, loading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
 
   const validateEmail = (email: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -26,33 +23,24 @@ const LoginPage = ({ onLogin }: LoginPageProps) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setIsLoading(true);
 
     if (!email || !password) {
       setError('Por favor, preencha todos os campos');
-      setIsLoading(false);
       return;
     }
 
     if (!validateEmail(email)) {
       setError('Por favor, insira um email válido');
-      setIsLoading(false);
       return;
     }
 
-    // Simulação de autenticação - em produção seria integrado com Supabase
-    setTimeout(() => {
-      if (email === 'admin@senai.br' && password === '123456') {
-        onLogin('admin');
-      } else if (email === 'professor@senai.br' && password === '123456') {
-        onLogin('professor');
-      } else if (email === 'aluno@senai.br' && password === '123456') {
-        onLogin('aluno');
-      } else {
-        setError('Email ou senha incorretos');
-      }
-      setIsLoading(false);
-    }, 1500);
+    const { error } = await signIn(email, password);
+    
+    if (error) {
+      setError(error.message === 'Invalid login credentials' 
+        ? 'Email ou senha incorretos' 
+        : 'Erro ao fazer login. Tente novamente.');
+    }
   };
 
   return (
@@ -128,9 +116,9 @@ const LoginPage = ({ onLogin }: LoginPageProps) => {
               <Button 
                 type="submit" 
                 className="w-full h-11 bg-senai-blue hover:bg-senai-blue-dark"
-                disabled={isLoading}
+                disabled={loading}
               >
-                {isLoading ? 'Entrando...' : 'Entrar'}
+                {loading ? 'Entrando...' : 'Entrar'}
               </Button>
             </form>
 
@@ -138,9 +126,7 @@ const LoginPage = ({ onLogin }: LoginPageProps) => {
             <div className="mt-6 p-4 bg-muted/50 rounded-lg">
               <p className="text-sm font-medium mb-2">Credenciais de teste:</p>
               <div className="text-xs space-y-1 text-muted-foreground">
-                <p>Admin: admin@senai.br / 123456</p>
-                <p>Professor: professor@senai.br / 123456</p>
-                <p>Aluno: aluno@senai.br / 123456</p>
+                <p>Para testar, crie uma conta primeiro usando a página de cadastro</p>
               </div>
             </div>
           </CardContent>

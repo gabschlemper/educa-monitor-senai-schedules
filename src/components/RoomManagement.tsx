@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -131,7 +130,7 @@ const RoomManagement = () => {
         }
 
         // Insert selected recursos
-        const recursosToInsert = Object.entries(selectedRecur sos)
+        const recursosToInsert = Object.entries(selectedRecursos)
           .filter(([_, selected]) => selected)
           .map(([recursoId, _]) => ({
             fk_salas: salaId,
