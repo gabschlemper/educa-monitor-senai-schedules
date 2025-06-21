@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,9 +10,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Plus, Edit, Trash2, Search, Filter } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
-import type { Administrador, Professor, Aluno, Turma } from "@/types/database";
-
-type User = Administrador | Professor | Aluno;
+import type { User, Turma } from "@/types/database";
 
 const UserManagement = () => {
   const [users, setUsers] = useState<User[]>([]);
@@ -55,9 +52,21 @@ const UserManagement = () => {
       ]);
 
       const allUsers: User[] = [
-        ...(adminsResult.data || []).map(admin => ({ ...admin, userType: 'administrador' as const })),
-        ...(professorsResult.data || []).map(prof => ({ ...prof, userType: 'professor' as const })),
-        ...(alunosResult.data || []).map(aluno => ({ ...aluno, userType: 'aluno' as const }))
+        ...(adminsResult.data || []).map(admin => ({ 
+          ...admin, 
+          userType: 'administrador' as const,
+          id: admin.id_administrador 
+        })),
+        ...(professorsResult.data || []).map(prof => ({ 
+          ...prof, 
+          userType: 'professor' as const,
+          id: prof.id_professor 
+        })),
+        ...(alunosResult.data || []).map(aluno => ({ 
+          ...aluno, 
+          userType: 'aluno' as const,
+          id: aluno.id_aluno 
+        }))
       ];
 
       setUsers(allUsers);
@@ -209,9 +218,7 @@ const UserManagement = () => {
   };
 
   const getUserType = (user: User): 'administrador' | 'professor' | 'aluno' => {
-    if ('id_administrador' in user) return 'administrador';
-    if ('id_professor' in user) return 'professor';
-    return 'aluno';
+    return user.userType;
   };
 
   const getTableName = (userType: string) => {
@@ -260,8 +267,8 @@ const UserManagement = () => {
       permissao: userType,
       senha: '',
       confirmSenha: '',
-      formacao_docente: userType === 'professor' ? (user as Professor).formacao_docente || '' : '',
-      fk_turma: userType === 'aluno' ? (user as Aluno).fk_turma?.toString() || '' : ''
+      formacao_docente: userType === 'professor' ? (user as any).formacao_docente || '' : '',
+      fk_turma: userType === 'aluno' ? (user as any).fk_turma?.toString() || '' : ''
     });
     setIsDialogOpen(true);
   };

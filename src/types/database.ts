@@ -73,3 +73,8 @@ export interface Notificacao {
   tipo: string;
   created_at?: string;
 }
+
+// Union type for all user types
+export type User = (Administrador & { userType: 'administrador' }) | 
+                   (Professor & { userType: 'professor' }) | 
+                   (Aluno & { userType: 'aluno' });
