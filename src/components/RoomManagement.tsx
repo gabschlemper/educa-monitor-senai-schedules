@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,169 +9,275 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Edit, Trash2, Search, Filter, MapPin, Monitor, Wifi, Snowflake, Computer } from "lucide-react";
+import { Plus, Edit, Trash2, Search, Filter, Monitor, Wifi, Snowflake, Computer } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/components/ui/use-toast";
+import type { Sala, Recurso } from "@/types/database";
 
-interface Room {
-  id: string;
-  identification: string;
-  capacity: number;
-  block: string;
-  floor: number;
-  type: 'Sala de aula' | 'Laboratório' | 'Auditório';
+interface RoomWithResources extends Sala {
   resources: {
-    projector: boolean;
-    tv: boolean;
-    computers: boolean;
-    internet: boolean;
-    airConditioning: boolean;
-    others: string;
+    [key: string]: boolean;
   };
 }
 
 const RoomManagement = () => {
-  const [rooms, setRooms] = useState<Room[]>([
-    {
-      id: '1',
-      identification: '101-A',
-      capacity: 40,
-      block: 'A',
-      floor: 1,
-      type: 'Sala de aula',
-      resources: { projector: true, tv: false, computers: false, internet: true, airConditioning: true, others: '' }
-    },
-    {
-      id: '2',
-      identification: 'Lab-01',
-      capacity: 25,
-      block: 'A',
-      floor: 2,
-      type: 'Laboratório',
-      resources: { projector: true, tv: true, computers: true, internet: true, airConditioning: true, others: 'Software de programação' }
-    },
-    {
-      id: '3',
-      identification: 'Aud-01',
-      capacity: 100,
-      block: 'B',
-      floor: 1,
-      type: 'Auditório',
-      resources: { projector: true, tv: false, computers: false, internet: true, airConditioning: true, others: 'Sistema de som profissional' }
-    },
-  ]);
-
+  const [rooms, setRooms] = useState<RoomWithResources[]>([]);
+  const [recursos, setRecursos] = useState<Recurso[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterBlock, setFilterBlock] = useState<string>('all');
   const [filterType, setFilterType] = useState<string>('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingRoom, setEditingRoom] = useState<Room | null>(null);
+  const [editingRoom, setEditingRoom] = useState<RoomWithResources | null>(null);
   const [formData, setFormData] = useState({
-    identification: '',
-    capacity: '',
-    block: '',
-    floor: '',
-    type: 'Sala de aula' as 'Sala de aula' | 'Laboratório' | 'Auditório',
-    resources: {
-      projector: false,
-      tv: false,
-      computers: false,
-      internet: false,
-      airConditioning: false,
-      others: ''
-    }
+    nome_sala: '',
+    capacidade: '',
+    bloco: '',
+    andar: '',
+    tipo_sala: 'Sala de aula' as 'Sala de aula' | 'Laboratório' | 'Auditório',
+    resources: {} as { [key: string]: boolean }
   });
   const [error, setError] = useState('');
+  const { toast } = useToast();
 
-  const filteredRooms = rooms.filter(room => {
-    const matchesSearch = room.identification.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         room.block.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesBlock = filterBlock === 'all' || room.block === filterBlock;
-    const matchesType = filterType === 'all' || room.type === filterType;
-    return matchesSearch && matchesBlock && matchesType;
-  });
+  useEffect(() => {
+    fetchRooms();
+    fetchRecursos();
+  }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const fetchRecursos = async () => {
+    try {
+      const { data, error } = await supabase.from('recursos').select('*');
+      if (error) throw error;
+      setRecursos(data || []);
+    } catch (error) {
+      console.error('Error fetching recursos:', error);
+    }
+  };
+
+  const fetchRooms = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch rooms with their resources
+      const { data: roomsData, error: roomsError } = await supabase
+        .from('salas')
+        .select('*');
+        
+      if (roomsError) throw roomsError;
+
+      // Fetch room resources
+      const { data: disponibilidadeData, error: dispError } = await supabase
+        .from('disponibilidade')
+        .select(`
+          fk_salas,
+          recurso_disponivel,
+          recursos(tipo_recurso)
+        `);
+        
+      if (dispError) throw dispError;
+
+      // Combine rooms with their resources
+      const roomsWithResources = (roomsData || []).map(room => {
+        const roomResources = disponibilidadeData?.filter(d => d.fk_salas === room.id_sala) || [];
+        const resources: { [key: string]: boolean } = {};
+        
+        roomResources.forEach(resource => {
+          if (resource.recursos?.tipo_recurso) {
+            resources[resource.recursos.tipo_recurso] = resource.recurso_disponivel || false;
+          }
+        });
+
+        return {
+          ...room,
+          resources
+        };
+      });
+
+      setRooms(roomsWithResources);
+    } catch (error) {
+      console.error('Error fetching rooms:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao carregar salas",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const validateForm = () => {
+    if (!formData.nome_sala || !formData.capacidade || !formData.bloco || !formData.andar) {
+      setError('Por favor, preencha todos os campos obrigatórios');
+      return false;
+    }
+
+    if (formData.nome_sala.length > 6) {
+      setError('A identificação deve ter no máximo 6 caracteres');
+      return false;
+    }
+
+    const capacity = parseInt(formData.capacidade);
+    if (isNaN(capacity) || capacity <= 0) {
+      setError('A capacidade deve ser um número válido maior que zero');
+      return false;
+    }
+
+    const floor = parseInt(formData.andar);
+    if (isNaN(floor) || floor < 0) {
+      setError('O andar deve ser um número válido');
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    if (!formData.identification || !formData.capacity || !formData.block || !formData.floor) {
-      setError('Por favor, preencha todos os campos obrigatórios');
+    if (!validateForm()) return;
+
+    try {
+      const roomData = {
+        nome_sala: formData.nome_sala,
+        capacidade: parseInt(formData.capacidade),
+        bloco: formData.bloco,
+        andar: parseInt(formData.andar),
+        tipo_sala: formData.tipo_sala
+      };
+
+      let roomId: number;
+
+      if (editingRoom) {
+        // Update existing room
+        const { error: updateError } = await supabase
+          .from('salas')
+          .update(roomData)
+          .eq('id_sala', editingRoom.id_sala);
+
+        if (updateError) throw updateError;
+        roomId = editingRoom.id_sala;
+      } else {
+        // Create new room
+        const { data, error: insertError } = await supabase
+          .from('salas')
+          .insert([roomData])
+          .select()
+          .single();
+
+        if (insertError) throw insertError;
+        roomId = data.id_sala;
+      }
+
+      // Update room resources
+      // First, delete existing resources for this room
+      await supabase
+        .from('disponibilidade')
+        .delete()
+        .eq('fk_salas', roomId);
+
+      // Then insert new resources
+      const resourceInserts = recursos
+        .filter(recurso => formData.resources[recurso.tipo_recurso])
+        .map(recurso => ({
+          fk_recursos: recurso.id_recurso,
+          fk_salas: roomId,
+          recurso_disponivel: true
+        }));
+
+      if (resourceInserts.length > 0) {
+        const { error: resourceError } = await supabase
+          .from('disponibilidade')
+          .insert(resourceInserts);
+
+        if (resourceError) throw resourceError;
+      }
+
+      toast({
+        title: "Sucesso",
+        description: `Sala ${editingRoom ? 'atualizada' : 'criada'} com sucesso`,
+      });
+
+      setIsDialogOpen(false);
+      setEditingRoom(null);
+      resetForm();
+      fetchRooms();
+    } catch (error: any) {
+      console.error('Error saving room:', error);
+      setError(error.message || 'Erro ao salvar sala');
+    }
+  };
+
+  const handleDelete = async (room: RoomWithResources) => {
+    if (!confirm('Tem certeza que deseja excluir esta sala? Esta ação não pode ser desfeita.')) {
       return;
     }
 
-    if (formData.identification.length > 6) {
-      setError('A identificação deve ter no máximo 6 caracteres');
-      return;
+    try {
+      // First delete resources
+      await supabase
+        .from('disponibilidade')
+        .delete()
+        .eq('fk_salas', room.id_sala);
+
+      // Then delete room
+      const { error } = await supabase
+        .from('salas')
+        .delete()
+        .eq('id_sala', room.id_sala);
+
+      if (error) throw error;
+
+      toast({
+        title: "Sucesso",
+        description: "Sala excluída com sucesso",
+      });
+
+      fetchRooms();
+    } catch (error: any) {
+      console.error('Error deleting room:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao excluir sala",
+        variant: "destructive",
+      });
     }
-
-    const capacity = parseInt(formData.capacity);
-    if (isNaN(capacity) || capacity <= 0) {
-      setError('A capacidade deve ser um número válido maior que zero');
-      return;
-    }
-
-    const floor = parseInt(formData.floor);
-    if (isNaN(floor) || floor < 0) {
-      setError('O andar deve ser um número válido');
-      return;
-    }
-
-    const newRoom: Room = {
-      id: editingRoom ? editingRoom.id : Date.now().toString(),
-      identification: formData.identification,
-      capacity,
-      block: formData.block,
-      floor,
-      type: formData.type,
-      resources: formData.resources
-    };
-
-    if (editingRoom) {
-      setRooms(rooms.map(room => room.id === editingRoom.id ? newRoom : room));
-    } else {
-      setRooms([...rooms, newRoom]);
-    }
-
-    setIsDialogOpen(false);
-    setEditingRoom(null);
-    resetForm();
   };
 
   const resetForm = () => {
     setFormData({
-      identification: '',
-      capacity: '',
-      block: '',
-      floor: '',
-      type: 'Sala de aula',
-      resources: {
-        projector: false,
-        tv: false,
-        computers: false,
-        internet: false,
-        airConditioning: false,
-        others: ''
-      }
+      nome_sala: '',
+      capacidade: '',
+      bloco: '',
+      andar: '',
+      tipo_sala: 'Sala de aula',
+      resources: {}
     });
+    setError('');
   };
 
-  const handleEdit = (room: Room) => {
+  const handleEdit = (room: RoomWithResources) => {
     setEditingRoom(room);
     setFormData({
-      identification: room.identification,
-      capacity: room.capacity.toString(),
-      block: room.block,
-      floor: room.floor.toString(),
-      type: room.type,
+      nome_sala: room.nome_sala,
+      capacidade: room.capacidade.toString(),
+      bloco: room.bloco,
+      andar: room.andar.toString(),
+      tipo_sala: room.tipo_sala as 'Sala de aula' | 'Laboratório' | 'Auditório',
       resources: room.resources
     });
     setIsDialogOpen(true);
   };
 
-  const handleDelete = (roomId: string) => {
-    if (confirm('Tem certeza que deseja excluir esta sala? Esta ação não pode ser desfeita.')) {
-      setRooms(rooms.filter(room => room.id !== roomId));
-    }
-  };
+  const filteredRooms = rooms.filter(room => {
+    const matchesSearch = room.nome_sala.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         room.bloco.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesBlock = filterBlock === 'all' || room.bloco === filterBlock;
+    const matchesType = filterType === 'all' || room.tipo_sala === filterType;
+    return matchesSearch && matchesBlock && matchesType;
+  });
 
   const getTypeColor = (type: string) => {
     switch (type) {
@@ -181,13 +288,13 @@ const RoomManagement = () => {
     }
   };
 
-  const renderResources = (resources: Room['resources']) => {
+  const renderResources = (resources: { [key: string]: boolean }) => {
     const activeResources = [];
-    if (resources.projector) activeResources.push(<div key="projector" className="flex items-center" title="Projetor"><Monitor className="h-4 w-4" /></div>);
-    if (resources.tv) activeResources.push(<div key="tv" className="text-xs bg-gray-500 text-white px-1 rounded">TV</div>);
-    if (resources.computers) activeResources.push(<div key="computers" className="flex items-center" title="Computadores"><Computer className="h-4 w-4" /></div>);
-    if (resources.internet) activeResources.push(<div key="internet" className="flex items-center" title="Internet"><Wifi className="h-4 w-4" /></div>);
-    if (resources.airConditioning) activeResources.push(<div key="ac" className="flex items-center" title="Ar Condicionado"><Snowflake className="h-4 w-4" /></div>);
+    if (resources['Projetor']) activeResources.push(<div key="projector" className="flex items-center" title="Projetor"><Monitor className="h-4 w-4" /></div>);
+    if (resources['TV']) activeResources.push(<div key="tv" className="text-xs bg-gray-500 text-white px-1 rounded">TV</div>);
+    if (resources['Computadores']) activeResources.push(<div key="computers" className="flex items-center" title="Computadores"><Computer className="h-4 w-4" /></div>);
+    if (resources['Internet']) activeResources.push(<div key="internet" className="flex items-center" title="Internet"><Wifi className="h-4 w-4" /></div>);
+    if (resources['Ar Condicionado']) activeResources.push(<div key="ac" className="flex items-center" title="Ar Condicionado"><Snowflake className="h-4 w-4" /></div>);
     
     return (
       <div className="flex items-center space-x-1 flex-wrap">
@@ -195,6 +302,10 @@ const RoomManagement = () => {
       </div>
     );
   };
+
+  if (loading) {
+    return <div className="p-6">Carregando salas...</div>;
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -226,8 +337,8 @@ const RoomManagement = () => {
                   <Label htmlFor="identification">Identificação/Número *</Label>
                   <Input
                     id="identification"
-                    value={formData.identification}
-                    onChange={(e) => setFormData({...formData, identification: e.target.value})}
+                    value={formData.nome_sala}
+                    onChange={(e) => setFormData({...formData, nome_sala: e.target.value})}
                     placeholder="Ex: 101-A, Lab-01"
                     maxLength={6}
                     required
@@ -238,8 +349,8 @@ const RoomManagement = () => {
                   <Input
                     id="capacity"
                     type="number"
-                    value={formData.capacity}
-                    onChange={(e) => setFormData({...formData, capacity: e.target.value})}
+                    value={formData.capacidade}
+                    onChange={(e) => setFormData({...formData, capacidade: e.target.value})}
                     placeholder="Ex: 40"
                     min="1"
                     required
@@ -250,7 +361,7 @@ const RoomManagement = () => {
               <div className="grid grid-cols-3 gap-4">
                 <div>
                   <Label htmlFor="block">Bloco *</Label>
-                  <Select value={formData.block} onValueChange={(value) => setFormData({...formData, block: value})}>
+                  <Select value={formData.bloco} onValueChange={(value) => setFormData({...formData, bloco: value})}>
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione" />
                     </SelectTrigger>
@@ -266,8 +377,8 @@ const RoomManagement = () => {
                   <Input
                     id="floor"
                     type="number"
-                    value={formData.floor}
-                    onChange={(e) => setFormData({...formData, floor: e.target.value})}
+                    value={formData.andar}
+                    onChange={(e) => setFormData({...formData, andar: e.target.value})}
                     placeholder="Ex: 1"
                     min="0"
                     required
@@ -275,7 +386,7 @@ const RoomManagement = () => {
                 </div>
                 <div>
                   <Label htmlFor="type">Tipo de Sala *</Label>
-                  <Select value={formData.type} onValueChange={(value: 'Sala de aula' | 'Laboratório' | 'Auditório') => setFormData({...formData, type: value})}>
+                  <Select value={formData.tipo_sala} onValueChange={(value: 'Sala de aula' | 'Laboratório' | 'Auditório') => setFormData({...formData, tipo_sala: value})}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -291,44 +402,25 @@ const RoomManagement = () => {
               <div>
                 <Label className="text-base font-medium">Recursos Disponíveis</Label>
                 <div className="grid grid-cols-2 gap-4 mt-2">
-                  {[
-                    { key: 'projector', label: 'Projetor' },
-                    { key: 'tv', label: 'TV' },
-                    { key: 'computers', label: 'Computadores' },
-                    { key: 'internet', label: 'Internet' },
-                    { key: 'airConditioning', label: 'Ar Condicionado' }
-                  ].map(resource => (
-                    <div key={resource.key} className="flex items-center space-x-2">
+                  {recursos.map(recurso => (
+                    <div key={recurso.id_recurso} className="flex items-center space-x-2">
                       <Checkbox
-                        id={resource.key}
-                        checked={formData.resources[resource.key as keyof typeof formData.resources] as boolean}
+                        id={recurso.tipo_recurso}
+                        checked={formData.resources[recurso.tipo_recurso] || false}
                         onCheckedChange={(checked) => 
                           setFormData({
                             ...formData, 
                             resources: {
                               ...formData.resources,
-                              [resource.key]: checked
+                              [recurso.tipo_recurso]: checked
                             }
                           })
                         }
                       />
-                      <Label htmlFor={resource.key}>{resource.label}</Label>
+                      <Label htmlFor={recurso.tipo_recurso}>{recurso.tipo_recurso}</Label>
                     </div>
                   ))}
                 </div>
-              </div>
-
-              <div>
-                <Label htmlFor="others">Outros Recursos</Label>
-                <Input
-                  id="others"
-                  value={formData.resources.others}
-                  onChange={(e) => setFormData({
-                    ...formData,
-                    resources: {...formData.resources, others: e.target.value}
-                  })}
-                  placeholder="Ex: Sistema de som, softwares específicos..."
-                />
               </div>
 
               {error && (
@@ -415,14 +507,14 @@ const RoomManagement = () => {
               </thead>
               <tbody>
                 {filteredRooms.map((room) => (
-                  <tr key={room.id} className="border-b hover:bg-muted/50">
-                    <td className="py-3 px-2 font-medium">{room.identification}</td>
-                    <td className="py-3 px-2">{room.block}</td>
-                    <td className="py-3 px-2">{room.floor}º</td>
-                    <td className="py-3 px-2">{room.capacity} pessoas</td>
+                  <tr key={room.id_sala} className="border-b hover:bg-muted/50">
+                    <td className="py-3 px-2 font-medium">{room.nome_sala}</td>
+                    <td className="py-3 px-2">{room.bloco}</td>
+                    <td className="py-3 px-2">{room.andar}º</td>
+                    <td className="py-3 px-2">{room.capacidade} pessoas</td>
                     <td className="py-3 px-2">
-                      <Badge className={getTypeColor(room.type)}>
-                        {room.type}
+                      <Badge className={getTypeColor(room.tipo_sala)}>
+                        {room.tipo_sala}
                       </Badge>
                     </td>
                     <td className="py-3 px-2">
@@ -440,7 +532,7 @@ const RoomManagement = () => {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleDelete(room.id)}
+                          onClick={() => handleDelete(room)}
                           className="text-destructive hover:text-destructive"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -451,37 +543,6 @@ const RoomManagement = () => {
                 ))}
               </tbody>
             </table>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Weekly Availability Calendar */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Disponibilidade Semanal das Salas</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-7 gap-2 text-center">
-            {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((day, index) => (
-              <div key={index}>
-                <h4 className="font-medium text-sm mb-2 p-2 bg-muted rounded">{day}</h4>
-                <div className="space-y-1">
-                  {index > 0 && index < 6 && (
-                    <>
-                      <div className="bg-green-100 text-green-800 text-xs p-1 rounded">
-                        8h-10h: {Math.floor(Math.random() * 5) + 1} livres
-                      </div>
-                      <div className="bg-yellow-100 text-yellow-800 text-xs p-1 rounded">
-                        14h-16h: {Math.floor(Math.random() * 3) + 1} livres
-                      </div>
-                      <div className="bg-red-100 text-red-800 text-xs p-1 rounded">
-                        19h-21h: Todas ocupadas
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-            ))}
           </div>
         </CardContent>
       </Card>
