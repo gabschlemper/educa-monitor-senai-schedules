@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -184,11 +183,11 @@ const RoomManagement = () => {
 
   const renderResources = (resources: Room['resources']) => {
     const activeResources = [];
-    if (resources.projector) activeResources.push(<Monitor key="projector" className="h-4 w-4" title="Projetor" />);
+    if (resources.projector) activeResources.push(<div key="projector" className="flex items-center" title="Projetor"><Monitor className="h-4 w-4" /></div>);
     if (resources.tv) activeResources.push(<div key="tv" className="text-xs bg-gray-500 text-white px-1 rounded">TV</div>);
-    if (resources.computers) activeResources.push(<Computer key="computers" className="h-4 w-4" title="Computadores" />);
-    if (resources.internet) activeResources.push(<Wifi key="internet" className="h-4 w-4" title="Internet" />);
-    if (resources.airConditioning) activeResources.push(<Snowflake key="ac" className="h-4 w-4" title="Ar Condicionado" />);
+    if (resources.computers) activeResources.push(<div key="computers" className="flex items-center" title="Computadores"><Computer className="h-4 w-4" /></div>);
+    if (resources.internet) activeResources.push(<div key="internet" className="flex items-center" title="Internet"><Wifi className="h-4 w-4" /></div>);
+    if (resources.airConditioning) activeResources.push(<div key="ac" className="flex items-center" title="Ar Condicionado"><Snowflake className="h-4 w-4" /></div>);
     
     return (
       <div className="flex items-center space-x-1 flex-wrap">
