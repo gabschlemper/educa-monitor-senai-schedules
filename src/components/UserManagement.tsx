@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -153,7 +154,7 @@ const UserManagement = () => {
     if (!validateForm()) return;
 
     try {
-      const userData = {
+      const userData: any = {
         nome: formData.nome,
         email: formData.email,
         cpf: formData.cpf.replace(/\D/g, ''),
@@ -170,22 +171,47 @@ const UserManagement = () => {
         })
       };
 
-      let result;
-      const tableName = formData.userType === 'administrador' ? 'administrador' :
-                       formData.userType === 'professor' ? 'professores' : 'alunos';
-      const idField = formData.userType === 'administrador' ? 'id_administrador' :
-                     formData.userType === 'professor' ? 'id_professor' : 'id_aluno';
-
-      if (editingUser) {
-        result = await supabase
-          .from(tableName)
-          .update(userData)
-          .eq(idField, editingUser.id);
-      } else {
-        result = await supabase.from(tableName).insert([userData]);
+      // Explicitly handle each user type to avoid type inference issues
+      if (formData.userType === 'administrador') {
+        if (editingUser) {
+          const { error } = await supabase
+            .from('administrador')
+            .update(userData)
+            .eq('id_administrador', editingUser.id);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase
+            .from('administrador')
+            .insert([userData]);
+          if (error) throw error;
+        }
+      } else if (formData.userType === 'professor') {
+        if (editingUser) {
+          const { error } = await supabase
+            .from('professores')
+            .update(userData)
+            .eq('id_professor', editingUser.id);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase
+            .from('professores')
+            .insert([userData]);
+          if (error) throw error;
+        }
+      } else if (formData.userType === 'aluno') {
+        if (editingUser) {
+          const { error } = await supabase
+            .from('alunos')
+            .update(userData)
+            .eq('id_aluno', editingUser.id);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase
+            .from('alunos')
+            .insert([userData]);
+          if (error) throw error;
+        }
       }
-
-      if (result.error) throw result.error;
 
       toast({
         title: "Sucesso",
@@ -212,17 +238,26 @@ const UserManagement = () => {
     }
 
     try {
-      const tableName = user.userType === 'administrador' ? 'administrador' :
-                       user.userType === 'professor' ? 'professores' : 'alunos';
-      const idField = user.userType === 'administrador' ? 'id_administrador' :
-                     user.userType === 'professor' ? 'id_professor' : 'id_aluno';
-
-      const { error } = await supabase
-        .from(tableName)
-        .delete()
-        .eq(idField, user.id);
-
-      if (error) throw error;
+      // Explicitly handle each user type to avoid type inference issues
+      if (user.userType === 'administrador') {
+        const { error } = await supabase
+          .from('administrador')
+          .delete()
+          .eq('id_administrador', user.id);
+        if (error) throw error;
+      } else if (user.userType === 'professor') {
+        const { error } = await supabase
+          .from('professores')
+          .delete()
+          .eq('id_professor', user.id);
+        if (error) throw error;
+      } else if (user.userType === 'aluno') {
+        const { error } = await supabase
+          .from('alunos')
+          .delete()
+          .eq('id_aluno', user.id);
+        if (error) throw error;
+      }
 
       toast({
         title: "Sucesso",
