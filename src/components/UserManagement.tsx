@@ -7,28 +7,52 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Plus, Edit, Trash2, Search, Filter } from "lucide-react";
+import { Plus, Edit, Trash2, Search, Filter, User, Users, UserCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
-import type { User, Turma } from "@/types/database";
+
+interface BaseUser {
+  id: number;
+  email: string;
+  nome: string;
+  cpf: string;
+  matricula: number;
+  telefone?: string;
+  permissao: number;
+  userType: 'administrador' | 'professor' | 'aluno';
+}
+
+interface AdminUser extends BaseUser {
+  userType: 'administrador';
+}
+
+interface ProfessorUser extends BaseUser {
+  userType: 'professor';
+  formacao_docente?: string;
+}
+
+interface StudentUser extends BaseUser {
+  userType: 'aluno';
+  fk_turma?: number;
+}
+
+type UserType = AdminUser | ProfessorUser | StudentUser;
 
 const UserManagement = () => {
-  const [users, setUsers] = useState<User[]>([]);
-  const [turmas, setTurmas] = useState<Turma[]>([]);
+  const [users, setUsers] = useState<UserType[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editingUser, setEditingUser] = useState<UserType | null>(null);
   const [formData, setFormData] = useState({
     nome: '',
     email: '',
     cpf: '',
-    telefone: '',
     matricula: '',
-    permissao: 'aluno' as 'administrador' | 'professor' | 'aluno',
+    telefone: '',
     senha: '',
-    confirmSenha: '',
+    userType: '',
     formacao_docente: '',
     fk_turma: ''
   });
@@ -37,37 +61,65 @@ const UserManagement = () => {
 
   useEffect(() => {
     fetchUsers();
-    fetchTurmas();
   }, []);
 
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      
-      // Fetch all user types
-      const [adminsResult, professorsResult, alunosResult] = await Promise.all([
-        supabase.from('administrador').select('*'),
-        supabase.from('professores').select('*'),
-        supabase.from('alunos').select('*, turmas(agrupamento, ano)')
-      ]);
+      const allUsers: UserType[] = [];
 
-      const allUsers: User[] = [
-        ...(adminsResult.data || []).map(admin => ({ 
-          ...admin, 
-          userType: 'administrador' as const,
-          id: admin.id_administrador 
-        })),
-        ...(professorsResult.data || []).map(prof => ({ 
-          ...prof, 
-          userType: 'professor' as const,
-          id: prof.id_professor 
-        })),
-        ...(alunosResult.data || []).map(aluno => ({ 
-          ...aluno, 
-          userType: 'aluno' as const,
-          id: aluno.id_aluno 
-        }))
-      ];
+      // Fetch administrators
+      const { data: admins } = await supabase.from('administrador').select('*');
+      if (admins) {
+        admins.forEach(admin => {
+          allUsers.push({
+            id: admin.id_administrador,
+            email: admin.email,
+            nome: admin.nome,
+            cpf: admin.cpf,
+            matricula: admin.matricula,
+            telefone: admin.telefone,
+            permissao: admin.permissao,
+            userType: 'administrador'
+          });
+        });
+      }
+
+      // Fetch professors
+      const { data: professors } = await supabase.from('professores').select('*');
+      if (professors) {
+        professors.forEach(prof => {
+          allUsers.push({
+            id: prof.id_professor,
+            email: prof.email,
+            nome: prof.nome,
+            cpf: prof.cpf,
+            matricula: prof.matricula,
+            telefone: prof.telefone,
+            permissao: prof.permissao,
+            userType: 'professor',
+            formacao_docente: prof.formacao_docente
+          });
+        });
+      }
+
+      // Fetch students
+      const { data: students } = await supabase.from('alunos').select('*');
+      if (students) {
+        students.forEach(student => {
+          allUsers.push({
+            id: student.id_aluno,
+            email: student.email,
+            nome: student.nome,
+            cpf: student.cpf,
+            matricula: student.matricula,
+            telefone: student.telefone,
+            permissao: student.permissao,
+            userType: 'aluno',
+            fk_turma: student.fk_turma
+          });
+        });
+      }
 
       setUsers(allUsers);
     } catch (error) {
@@ -82,46 +134,25 @@ const UserManagement = () => {
     }
   };
 
-  const fetchTurmas = async () => {
-    try {
-      const { data, error } = await supabase.from('turmas').select('*');
-      if (error) throw error;
-      setTurmas(data || []);
-    } catch (error) {
-      console.error('Error fetching turmas:', error);
-    }
-  };
-
   const validateForm = () => {
-    if (!formData.nome || !formData.email || !formData.cpf || !formData.matricula) {
+    if (!formData.nome || !formData.email || !formData.cpf || !formData.matricula || !formData.userType) {
       setError('Por favor, preencha todos os campos obrigatórios');
       return false;
     }
 
-    if (formData.nome.length > 100) {
-      setError('Nome deve ter no máximo 100 caracteres');
+    if (!editingUser && !formData.senha) {
+      setError('Senha é obrigatória para novos usuários');
+      return false;
+    }
+
+    if (formData.cpf.replace(/\D/g, '').length !== 11) {
+      setError('CPF deve ter 11 dígitos');
       return false;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(formData.email)) {
-      setError('Email deve ter um formato válido');
-      return false;
-    }
-
-    const cpfRegex = /^\d{11}$/;
-    if (!cpfRegex.test(formData.cpf.replace(/\D/g, ''))) {
-      setError('CPF deve conter 11 dígitos');
-      return false;
-    }
-
-    if (!editingUser && formData.senha.length < 8) {
-      setError('Senha deve ter no mínimo 8 caracteres');
-      return false;
-    }
-
-    if (!editingUser && formData.senha !== formData.confirmSenha) {
-      setError('Senhas não coincidem');
+      setError('Email deve ter formato válido');
       return false;
     }
 
@@ -139,32 +170,32 @@ const UserManagement = () => {
         nome: formData.nome,
         email: formData.email,
         cpf: formData.cpf.replace(/\D/g, ''),
-        telefone: formData.telefone.replace(/\D/g, '') || null,
         matricula: parseInt(formData.matricula),
-        permissao: formData.permissao === 'administrador' ? 1 : formData.permissao === 'professor' ? 2 : 3,
-        ...(formData.senha && { senha: formData.senha })
+        telefone: formData.telefone || null,
+        permissao: formData.userType === 'administrador' ? 1 : 
+                  formData.userType === 'professor' ? 2 : 3,
+        ...(formData.senha && { senha: formData.senha }),
+        ...(formData.userType === 'professor' && { 
+          formacao_docente: formData.formacao_docente 
+        }),
+        ...(formData.userType === 'aluno' && formData.fk_turma && { 
+          fk_turma: parseInt(formData.fk_turma) 
+        })
       };
 
       let result;
-      
-      if (editingUser) {
-        // Update existing user
-        const table = getTableName(formData.permissao);
-        const idField = getIdField(formData.permissao);
-        result = await supabase
-          .from(table)
-          .update(userData)
-          .eq(idField, (editingUser as any)[idField]);
-      } else {
-        // Create new user
-        const table = getTableName(formData.permissao);
-        const specificData = formData.permissao === 'professor' 
-          ? { ...userData, formacao_docente: formData.formacao_docente || null }
-          : formData.permissao === 'aluno'
-          ? { ...userData, fk_turma: formData.fk_turma ? parseInt(formData.fk_turma) : null }
-          : userData;
+      const tableName = formData.userType === 'administrador' ? 'administrador' :
+                       formData.userType === 'professor' ? 'professores' : 'alunos';
+      const idField = formData.userType === 'administrador' ? 'id_administrador' :
+                     formData.userType === 'professor' ? 'id_professor' : 'id_aluno';
 
-        result = await supabase.from(table).insert([specificData]);
+      if (editingUser) {
+        result = await supabase
+          .from(tableName)
+          .update(userData)
+          .eq(idField, editingUser.id);
+      } else {
+        result = await supabase.from(tableName).insert([userData]);
       }
 
       if (result.error) throw result.error;
@@ -180,24 +211,29 @@ const UserManagement = () => {
       fetchUsers();
     } catch (error: any) {
       console.error('Error saving user:', error);
-      setError(error.message || 'Erro ao salvar usuário');
+      if (error.code === '23505') {
+        setError('Email, CPF ou matrícula já cadastrados');
+      } else {
+        setError(error.message || 'Erro ao salvar usuário');
+      }
     }
   };
 
-  const handleDelete = async (user: User) => {
+  const handleDelete = async (user: UserType) => {
     if (!confirm('Tem certeza que deseja excluir este usuário? Esta ação não pode ser desfeita.')) {
       return;
     }
 
     try {
-      const userType = getUserType(user);
-      const table = getTableName(userType);
-      const idField = getIdField(userType);
-      
+      const tableName = user.userType === 'administrador' ? 'administrador' :
+                       user.userType === 'professor' ? 'professores' : 'alunos';
+      const idField = user.userType === 'administrador' ? 'id_administrador' :
+                     user.userType === 'professor' ? 'id_professor' : 'id_aluno';
+
       const { error } = await supabase
-        .from(table)
+        .from(tableName)
         .delete()
-        .eq(idField, (user as any)[idField]);
+        .eq(idField, user.id);
 
       if (error) throw error;
 
@@ -217,93 +253,65 @@ const UserManagement = () => {
     }
   };
 
-  const getUserType = (user: User): 'administrador' | 'professor' | 'aluno' => {
-    return user.userType;
-  };
-
-  const getTableName = (userType: string) => {
-    switch (userType) {
-      case 'administrador': return 'administrador';
-      case 'professor': return 'professores';
-      case 'aluno': return 'alunos';
-      default: return 'alunos';
-    }
-  };
-
-  const getIdField = (userType: string) => {
-    switch (userType) {
-      case 'administrador': return 'id_administrador';
-      case 'professor': return 'id_professor';
-      case 'aluno': return 'id_aluno';
-      default: return 'id_aluno';
-    }
-  };
-
   const resetForm = () => {
     setFormData({
       nome: '',
       email: '',
       cpf: '',
-      telefone: '',
       matricula: '',
-      permissao: 'aluno',
+      telefone: '',
       senha: '',
-      confirmSenha: '',
+      userType: '',
       formacao_docente: '',
       fk_turma: ''
     });
     setError('');
   };
 
-  const handleEdit = (user: User) => {
+  const handleEdit = (user: UserType) => {
     setEditingUser(user);
-    const userType = getUserType(user);
     setFormData({
       nome: user.nome,
       email: user.email,
       cpf: user.cpf,
-      telefone: user.telefone || '',
       matricula: user.matricula.toString(),
-      permissao: userType,
+      telefone: user.telefone || '',
       senha: '',
-      confirmSenha: '',
-      formacao_docente: userType === 'professor' ? (user as any).formacao_docente || '' : '',
-      fk_turma: userType === 'aluno' ? (user as any).fk_turma?.toString() || '' : ''
+      userType: user.userType,
+      formacao_docente: user.userType === 'professor' ? (user as ProfessorUser).formacao_docente || '' : '',
+      fk_turma: user.userType === 'aluno' ? (user as StudentUser).fk_turma?.toString() || '' : ''
     });
     setIsDialogOpen(true);
   };
 
-  const formatCPF = (cpf: string) => {
-    const numbers = cpf.replace(/\D/g, '');
-    return numbers.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+  const formatCPF = (value: string) => {
+    const digits = value.replace(/\D/g, '');
+    return digits.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
   };
 
-  const formatPhone = (phone: string) => {
-    const numbers = phone.replace(/\D/g, '');
-    return numbers.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+  const getUserTypeBadge = (userType: string) => {
+    const configs = {
+      'administrador': { color: 'bg-red-100 text-red-800', icon: UserCheck, label: 'Administrador' },
+      'professor': { color: 'bg-blue-100 text-blue-800', icon: User, label: 'Professor' },
+      'aluno': { color: 'bg-green-100 text-green-800', icon: Users, label: 'Aluno' }
+    };
+    const config = configs[userType as keyof typeof configs];
+    const Icon = config.icon;
+    return (
+      <Badge className={config.color}>
+        <Icon className="h-3 w-3 mr-1" />
+        {config.label}
+      </Badge>
+    );
   };
 
   const filteredUsers = users.filter(user => {
     const matchesSearch = user.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.matricula.toString().includes(searchTerm);
-    const matchesType = filterType === 'all' || getUserType(user) === filterType;
+                         user.cpf.includes(searchTerm);
+    const matchesType = filterType === 'all' || user.userType === filterType;
     return matchesSearch && matchesType;
   });
-
-  const getUserTypeBadge = (userType: string) => {
-    const colors = {
-      administrador: 'bg-red-100 text-red-800',
-      professor: 'bg-blue-100 text-blue-800',
-      aluno: 'bg-green-100 text-green-800'
-    };
-    const labels = {
-      administrador: 'Admin',
-      professor: 'Professor',
-      aluno: 'Aluno'
-    };
-    return { color: colors[userType as keyof typeof colors], label: labels[userType as keyof typeof labels] };
-  };
 
   if (loading) {
     return <div className="p-6">Carregando usuários...</div>;
@@ -314,7 +322,7 @@ const UserManagement = () => {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">Gerenciamento de Usuários</h1>
-          <p className="text-muted-foreground">Administre administradores, professores e alunos</p>
+          <p className="text-muted-foreground">Administre usuários do sistema</p>
         </div>
         
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -341,42 +349,33 @@ const UserManagement = () => {
                     id="nome"
                     value={formData.nome}
                     onChange={(e) => setFormData({...formData, nome: e.target.value})}
-                    maxLength={100}
+                    placeholder="João Silva"
                     required
                   />
                 </div>
                 <div>
-                  <Label htmlFor="email">Email Institucional *</Label>
+                  <Label htmlFor="email">Email *</Label>
                   <Input
                     id="email"
                     type="email"
                     value={formData.email}
                     onChange={(e) => setFormData({...formData, email: e.target.value})}
+                    placeholder="joao@senai.br"
                     required
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="cpf">CPF *</Label>
                   <Input
                     id="cpf"
-                    value={formatCPF(formData.cpf)}
-                    onChange={(e) => setFormData({...formData, cpf: e.target.value.replace(/\D/g, '')})}
+                    value={formData.cpf}
+                    onChange={(e) => setFormData({...formData, cpf: formatCPF(e.target.value)})}
                     placeholder="000.000.000-00"
                     maxLength={14}
                     required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="telefone">Telefone</Label>
-                  <Input
-                    id="telefone"
-                    value={formatPhone(formData.telefone)}
-                    onChange={(e) => setFormData({...formData, telefone: e.target.value.replace(/\D/g, '')})}
-                    placeholder="(00) 00000-0000"
-                    maxLength={15}
                   />
                 </div>
                 <div>
@@ -386,77 +385,76 @@ const UserManagement = () => {
                     type="number"
                     value={formData.matricula}
                     onChange={(e) => setFormData({...formData, matricula: e.target.value})}
+                    placeholder="12345"
                     required
                   />
                 </div>
               </div>
 
-              <div>
-                <Label htmlFor="permissao">Tipo de Usuário *</Label>
-                <Select value={formData.permissao} onValueChange={(value: 'administrador' | 'professor' | 'aluno') => setFormData({...formData, permissao: value})}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="administrador">Administrador</SelectItem>
-                    <SelectItem value="professor">Professor</SelectItem>
-                    <SelectItem value="aluno">Aluno</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="telefone">Telefone</Label>
+                  <Input
+                    id="telefone"
+                    value={formData.telefone}
+                    onChange={(e) => setFormData({...formData, telefone: e.target.value})}
+                    placeholder="(11) 99999-9999"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="userType">Tipo de Usuário *</Label>
+                  <Select value={formData.userType} onValueChange={(value) => setFormData({...formData, userType: value})}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="administrador">Administrador</SelectItem>
+                      <SelectItem value="professor">Professor</SelectItem>
+                      <SelectItem value="aluno">Aluno</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
-              {formData.permissao === 'professor' && (
+              {formData.userType === 'professor' && (
                 <div>
-                  <Label htmlFor="formacao">Formação Docente</Label>
+                  <Label htmlFor="formacao_docente">Formação Docente</Label>
                   <Input
-                    id="formacao"
+                    id="formacao_docente"
                     value={formData.formacao_docente}
                     onChange={(e) => setFormData({...formData, formacao_docente: e.target.value})}
-                    maxLength={50}
+                    placeholder="Ex: Licenciatura em Matemática"
                   />
                 </div>
               )}
 
-              {formData.permissao === 'aluno' && (
+              {formData.userType === 'aluno' && (
                 <div>
-                  <Label htmlFor="turma">Turma</Label>
+                  <Label htmlFor="fk_turma">Turma</Label>
                   <Select value={formData.fk_turma} onValueChange={(value) => setFormData({...formData, fk_turma: value})}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Selecione uma turma" />
+                      <SelectValue placeholder="Selecione a turma" />
                     </SelectTrigger>
                     <SelectContent>
-                      {turmas.map((turma) => (
-                        <SelectItem key={turma.id_turma} value={turma.id_turma.toString()}>
-                          {turma.ano}{turma.agrupamento}
-                        </SelectItem>
-                      ))}
+                      <SelectItem value="1">A01</SelectItem>
+                      <SelectItem value="2">B01</SelectItem>
+                      <SelectItem value="3">A02</SelectItem>
+                      <SelectItem value="4">B02</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="senha">Senha {editingUser ? '' : '*'}</Label>
-                  <Input
-                    id="senha"
-                    type="password"
-                    value={formData.senha}
-                    onChange={(e) => setFormData({...formData, senha: e.target.value})}
-                    minLength={8}
-                    required={!editingUser}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="confirmSenha">Confirmar Senha {editingUser ? '' : '*'}</Label>
-                  <Input
-                    id="confirmSenha"
-                    type="password"
-                    value={formData.confirmSenha}
-                    onChange={(e) => setFormData({...formData, confirmSenha: e.target.value})}
-                    required={!editingUser}
-                  />
-                </div>
+              <div>
+                <Label htmlFor="senha">{editingUser ? 'Nova Senha (deixe em branco para manter)' : 'Senha *'}</Label>
+                <Input
+                  id="senha"
+                  type="password"
+                  value={formData.senha}
+                  onChange={(e) => setFormData({...formData, senha: e.target.value})}
+                  placeholder="Mínimo 6 caracteres"
+                  required={!editingUser}
+                />
               </div>
 
               {error && (
@@ -486,7 +484,7 @@ const UserManagement = () => {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                 <Input
-                  placeholder="Buscar por nome, email ou matrícula..."
+                  placeholder="Buscar por nome, email ou CPF..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
@@ -511,68 +509,60 @@ const UserManagement = () => {
         </CardContent>
       </Card>
 
-      {/* Users Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Usuários ({filteredUsers.length})</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-3 px-2">Nome</th>
-                  <th className="text-left py-3 px-2">Email</th>
-                  <th className="text-left py-3 px-2">CPF</th>
-                  <th className="text-left py-3 px-2">Matrícula</th>
-                  <th className="text-left py-3 px-2">Tipo</th>
-                  <th className="text-center py-3 px-2">Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredUsers.map((user) => {
-                  const userType = getUserType(user);
-                  const badge = getUserTypeBadge(userType);
-                  const userId = (user as any)[getIdField(userType)];
-                  
-                  return (
-                    <tr key={`${userType}-${userId}`} className="border-b hover:bg-muted/50">
-                      <td className="py-3 px-2 font-medium">{user.nome}</td>
-                      <td className="py-3 px-2">{user.email}</td>
-                      <td className="py-3 px-2">{formatCPF(user.cpf)}</td>
-                      <td className="py-3 px-2">{user.matricula}</td>
-                      <td className="py-3 px-2">
-                        <Badge className={badge.color}>
-                          {badge.label}
-                        </Badge>
-                      </td>
-                      <td className="py-3 px-2">
-                        <div className="flex justify-center space-x-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEdit(user)}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDelete(user)}
-                            className="text-destructive hover:text-destructive"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Users Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {filteredUsers.map((user) => (
+          <Card key={`${user.userType}-${user.id}`} className="hover:shadow-md transition-shadow">
+            <CardHeader className="pb-3">
+              <div className="flex justify-between items-start">
+                <div>
+                  <CardTitle className="text-lg">{user.nome}</CardTitle>
+                  {getUserTypeBadge(user.userType)}
+                </div>
+                <div className="flex space-x-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleEdit(user)}
+                  >
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleDelete(user)}
+                    className="text-destructive hover:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2 text-sm">
+                <div><strong>Email:</strong> {user.email}</div>
+                <div><strong>Matrícula:</strong> {user.matricula}</div>
+                <div><strong>CPF:</strong> {user.cpf}</div>
+                {user.telefone && <div><strong>Telefone:</strong> {user.telefone}</div>}
+                {user.userType === 'professor' && (user as ProfessorUser).formacao_docente && (
+                  <div><strong>Formação:</strong> {(user as ProfessorUser).formacao_docente}</div>
+                )}
+                {user.userType === 'aluno' && (user as StudentUser).fk_turma && (
+                  <div><strong>Turma:</strong> {(user as StudentUser).fk_turma}</div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {filteredUsers.length === 0 && (
+        <Card>
+          <CardContent className="text-center py-8">
+            <p className="text-muted-foreground">Nenhum usuário encontrado</p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };

@@ -1,8 +1,10 @@
 
-export interface DatabaseUser {
+export interface Administrador {
   id: number;
-  nome: string;
+  id_administrador: number;
   email: string;
+  senha: string;
+  nome: string;
   cpf: string;
   matricula: number;
   telefone?: string;
@@ -11,18 +13,34 @@ export interface DatabaseUser {
   updated_at?: string;
 }
 
-export interface Administrador extends DatabaseUser {
-  id_administrador: number;
-}
-
-export interface Professor extends DatabaseUser {
+export interface Professor {
+  id: number;
   id_professor: number;
+  email: string;
+  senha: string;
+  nome: string;
+  cpf: string;
+  matricula: number;
+  telefone?: string;
   formacao_docente?: string;
+  permissao: number;
+  created_at?: string;
+  updated_at?: string;
 }
 
-export interface Aluno extends DatabaseUser {
+export interface Aluno {
+  id: number;
   id_aluno: number;
+  email: string;
+  senha: string;
+  nome: string;
+  cpf: string;
+  matricula: number;
+  telefone?: string;
   fk_turma?: number;
+  permissao: number;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Sala {
@@ -35,10 +53,16 @@ export interface Sala {
   created_at?: string;
 }
 
+export interface Recurso {
+  id_recurso: number;
+  tipo_recurso: string;
+  created_at?: string;
+}
+
 export interface Turma {
   id_turma: number;
-  agrupamento: string;
   ano: string;
+  agrupamento: string;
   created_at?: string;
 }
 
@@ -48,33 +72,11 @@ export interface Disciplina {
   created_at?: string;
 }
 
-export interface Recurso {
-  id_recurso: number;
-  tipo_recurso: string;
-  created_at?: string;
-}
-
-export interface HorarioEscolar {
-  id_horario_escolar: number;
-  fk_administrador?: number;
-  fk_professores?: number;
-  fk_turmas?: number;
+export interface Horario {
+  id_horario: number;
+  data: string;
+  hora_inicio: string;
+  hora_termino: string;
   fk_salas?: number;
-  fk_horarios?: number;
-  fk_disciplina?: number;
   created_at?: string;
 }
-
-export interface Notificacao {
-  id_notificacao: number;
-  mensagem: string;
-  data_hora?: string;
-  fk_horario_escolar?: number;
-  tipo: string;
-  created_at?: string;
-}
-
-// Union type for all user types
-export type User = (Administrador & { userType: 'administrador' }) | 
-                   (Professor & { userType: 'professor' }) | 
-                   (Aluno & { userType: 'aluno' });
