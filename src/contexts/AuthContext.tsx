@@ -46,7 +46,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         console.log('Auth state changed:', event, session?.user?.email);
         setSession(session);
         
-        if (session?.user && event === 'SIGNED_IN') {
+        if (session?.user && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
           // Use setTimeout to prevent blocking the auth callback
           setTimeout(() => {
             if (mounted) {
@@ -222,30 +222,51 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       });
 
       if (signInError) {
-        // If auth user doesn't exist or email not confirmed, create/handle appropriately
-        if (signInError.message.includes('Invalid login credentials')) {
-          // Auth user doesn't exist, create it without email confirmation
+        console.log('Supabase auth error:', signInError);
+        
+        // If email not confirmed or user doesn't exist, create and confirm the user
+        if (signInError.message.includes('Invalid login credentials') || 
+            signInError.message.includes('Email not confirmed')) {
+          
+          console.log('Creating/confirming auth user for existing custom table user');
+          
+          // Try to sign up the user (this will create the auth user)
           const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
             email,
             password,
             options: {
-              emailRedirectTo: `${window.location.origin}/`,
-              data: {
-                email_confirm: true // This won't work, but we'll handle it differently
-              }
+              emailRedirectTo: `${window.location.origin}/`
             }
           });
           
           if (signUpError) {
+            // If user already exists but not confirmed, we need to handle it
+            if (signUpError.message.includes('User already registered')) {
+              // Try to recover/reset to confirm the email
+              const { error: recoverError } = await supabase.auth.resetPasswordForEmail(email, {
+                redirectTo: `${window.location.origin}/`
+              });
+              
+              if (!recoverError) {
+                return { error: { message: 'Please check your email for a confirmation link, then try logging in again.' } };
+              }
+            }
             return { error: signUpError };
           }
           
-          // The user is created but needs email confirmation
-          // For now, we'll return a specific message about email confirmation
-          return { error: { message: 'Account created. Please check your email to confirm your account before logging in.' } };
-          
-        } else if (signInError.message.includes('Email not confirmed')) {
-          return { error: { message: 'Please check your email and click the confirmation link before logging in.' } };
+          // If sign up was successful, try to sign in again
+          if (signUpData.user) {
+            const { data: finalSignIn, error: finalError } = await supabase.auth.signInWithPassword({
+              email,
+              password,
+            });
+            
+            if (finalError) {
+              return { error: { message: 'Account created but login failed. Please check your email for confirmation.' } };
+            }
+            
+            return { error: null };
+          }
         }
         
         return { error: signInError };
