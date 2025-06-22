@@ -34,34 +34,38 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
-    if (isInitialized) return;
+    let mounted = true;
 
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        if (!mounted) return;
+        
         console.log('Auth state changed:', event, session?.user?.email);
         setSession(session);
         
         if (session?.user && event === 'SIGNED_IN') {
           // Use setTimeout to prevent blocking the auth callback
           setTimeout(() => {
-            fetchUserData(session.user);
+            if (mounted) {
+              fetchUserData(session.user);
+            }
           }, 100);
         } else {
           setUser(null);
-        }
-        
-        if (event !== 'INITIAL_SESSION') {
-          setLoading(false);
+          if (event !== 'INITIAL_SESSION') {
+            setLoading(false);
+          }
         }
       }
     );
 
     // Check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!mounted) return;
+      
       console.log('Initial session check:', session?.user?.email);
       setSession(session);
       if (session?.user) {
@@ -69,11 +73,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       } else {
         setLoading(false);
       }
-      setIsInitialized(true);
     });
 
-    return () => subscription.unsubscribe();
-  }, [isInitialized]);
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
 
   const fetchUserData = async (authUser: User) => {
     try {
@@ -158,7 +164,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       setLoading(true);
       
-      // First, try to find the user in our custom tables to validate credentials
+      // First, check if user exists in our custom tables
       let userFound = false;
       let userType: 'administrador' | 'professor' | 'aluno' | null = null;
       
@@ -210,34 +216,39 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
       
       // Try to sign in with Supabase Auth
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      if (error) {
-        // If Supabase auth fails, try to create the user first
-        const { error: signUpError } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: `${window.location.origin}/`
+      if (signInError) {
+        // If auth user doesn't exist or email not confirmed, create/handle appropriately
+        if (signInError.message.includes('Invalid login credentials')) {
+          // Auth user doesn't exist, create it without email confirmation
+          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+              emailRedirectTo: `${window.location.origin}/`,
+              data: {
+                email_confirm: true // This won't work, but we'll handle it differently
+              }
+            }
+          });
+          
+          if (signUpError) {
+            return { error: signUpError };
           }
-        });
-        
-        if (signUpError) {
-          return { error: signUpError };
+          
+          // The user is created but needs email confirmation
+          // For now, we'll return a specific message about email confirmation
+          return { error: { message: 'Account created. Please check your email to confirm your account before logging in.' } };
+          
+        } else if (signInError.message.includes('Email not confirmed')) {
+          return { error: { message: 'Please check your email and click the confirmation link before logging in.' } };
         }
         
-        // Try signing in again
-        const { error: retryError } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-        
-        if (retryError) {
-          return { error: retryError };
-        }
+        return { error: signInError };
       }
 
       return { error: null };
@@ -253,18 +264,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       setLoading(true);
       
-      // First create the auth user
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/`
-        }
-      });
-
-      if (error) throw error;
-
-      // Then create the user in the appropriate table
+      // First create the user in our custom table
       const { userType, ...userInfo } = userData;
       
       let insertError;
@@ -290,6 +290,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       if (insertError) throw insertError;
+
+      // Then create the auth user
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/`
+        }
+      });
+
+      if (error) throw error;
 
       return { error: null };
     } catch (error: any) {
