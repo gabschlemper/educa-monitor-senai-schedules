@@ -11,7 +11,8 @@ import { Plus, Edit, Trash2, Search, Filter, User, Users, UserCheck } from "luci
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
 
-interface BaseUser {
+// Simplified type definitions to avoid infinite recursion
+interface UserData {
   id: number;
   email: string;
   nome: string;
@@ -20,31 +21,17 @@ interface BaseUser {
   telefone?: string;
   permissao: number;
   userType: 'administrador' | 'professor' | 'aluno';
+  formacao_docente?: string; // Only for professors
+  fk_turma?: number; // Only for students
 }
-
-interface AdminUser extends BaseUser {
-  userType: 'administrador';
-}
-
-interface ProfessorUser extends BaseUser {
-  userType: 'professor';
-  formacao_docente?: string;
-}
-
-interface StudentUser extends BaseUser {
-  userType: 'aluno';
-  fk_turma?: number;
-}
-
-type UserType = AdminUser | ProfessorUser | StudentUser;
 
 const UserManagement = () => {
-  const [users, setUsers] = useState<UserType[]>([]);
+  const [users, setUsers] = useState<UserData[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState<UserType | null>(null);
+  const [editingUser, setEditingUser] = useState<UserData | null>(null);
   const [formData, setFormData] = useState({
     nome: '',
     email: '',
@@ -66,7 +53,7 @@ const UserManagement = () => {
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      const allUsers: UserType[] = [];
+      const allUsers: UserData[] = [];
 
       // Fetch administrators
       const { data: admins } = await supabase.from('administrador').select('*');
@@ -219,7 +206,7 @@ const UserManagement = () => {
     }
   };
 
-  const handleDelete = async (user: UserType) => {
+  const handleDelete = async (user: UserData) => {
     if (!confirm('Tem certeza que deseja excluir este usuário? Esta ação não pode ser desfeita.')) {
       return;
     }
@@ -268,7 +255,7 @@ const UserManagement = () => {
     setError('');
   };
 
-  const handleEdit = (user: UserType) => {
+  const handleEdit = (user: UserData) => {
     setEditingUser(user);
     setFormData({
       nome: user.nome,
@@ -278,8 +265,8 @@ const UserManagement = () => {
       telefone: user.telefone || '',
       senha: '',
       userType: user.userType,
-      formacao_docente: user.userType === 'professor' ? (user as ProfessorUser).formacao_docente || '' : '',
-      fk_turma: user.userType === 'aluno' ? (user as StudentUser).fk_turma?.toString() || '' : ''
+      formacao_docente: user.formacao_docente || '',
+      fk_turma: user.fk_turma?.toString() || ''
     });
     setIsDialogOpen(true);
   };
@@ -544,11 +531,11 @@ const UserManagement = () => {
                 <div><strong>Matrícula:</strong> {user.matricula}</div>
                 <div><strong>CPF:</strong> {user.cpf}</div>
                 {user.telefone && <div><strong>Telefone:</strong> {user.telefone}</div>}
-                {user.userType === 'professor' && (user as ProfessorUser).formacao_docente && (
-                  <div><strong>Formação:</strong> {(user as ProfessorUser).formacao_docente}</div>
+                {user.userType === 'professor' && user.formacao_docente && (
+                  <div><strong>Formação:</strong> {user.formacao_docente}</div>
                 )}
-                {user.userType === 'aluno' && (user as StudentUser).fk_turma && (
-                  <div><strong>Turma:</strong> {(user as StudentUser).fk_turma}</div>
+                {user.userType === 'aluno' && user.fk_turma && (
+                  <div><strong>Turma:</strong> {user.fk_turma}</div>
                 )}
               </div>
             </CardContent>
