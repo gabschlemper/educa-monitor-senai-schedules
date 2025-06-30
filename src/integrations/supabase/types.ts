@@ -98,6 +98,27 @@ export type Database = {
           },
         ]
       }
+      datas_especiais: {
+        Row: {
+          data: string
+          descricao: string | null
+          id: number
+          tipo: string
+        }
+        Insert: {
+          data: string
+          descricao?: string | null
+          id?: number
+          tipo: string
+        }
+        Update: {
+          data?: string
+          descricao?: string | null
+          id?: number
+          tipo?: string
+        }
+        Relationships: []
+      }
       destinatarios: {
         Row: {
           created_at: string | null
@@ -265,6 +286,7 @@ export type Database = {
           hora_inicio: string
           hora_termino: string
           id_horario: number
+          is_dia_util: boolean
         }
         Insert: {
           created_at?: string | null
@@ -273,6 +295,7 @@ export type Database = {
           hora_inicio: string
           hora_termino: string
           id_horario?: number
+          is_dia_util?: boolean
         }
         Update: {
           created_at?: string | null
@@ -281,6 +304,7 @@ export type Database = {
           hora_inicio?: string
           hora_termino?: string
           id_horario?: number
+          is_dia_util?: boolean
         }
         Relationships: [
           {
@@ -321,6 +345,474 @@ export type Database = {
             referencedColumns: ["id_professor"]
           },
         ]
+      }
+      log_acessos: {
+        Row: {
+          data_hora: string | null
+          descricao: string
+          id_log: number
+          operacao: string
+          permissao: number
+          tabela_alvo: string
+          usuario_id: number
+        }
+        Insert: {
+          data_hora?: string | null
+          descricao: string
+          id_log?: number
+          operacao: string
+          permissao: number
+          tabela_alvo: string
+          usuario_id: number
+        }
+        Update: {
+          data_hora?: string | null
+          descricao?: string
+          id_log?: number
+          operacao?: string
+          permissao?: number
+          tabela_alvo?: string
+          usuario_id?: number
+        }
+        Relationships: []
+      }
+      log_administrador: {
+        Row: {
+          acao: string
+          cpf: string
+          created_at: string | null
+          data_hora: string | null
+          email: string
+          id_administrador: number
+          id_log: number
+          matricula: number
+          nome: string
+          permissao: number
+          senha: string
+          telefone: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          acao: string
+          cpf: string
+          created_at?: string | null
+          data_hora?: string | null
+          email: string
+          id_administrador: number
+          id_log?: number
+          matricula: number
+          nome: string
+          permissao: number
+          senha: string
+          telefone?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          acao?: string
+          cpf?: string
+          created_at?: string | null
+          data_hora?: string | null
+          email?: string
+          id_administrador?: number
+          id_log?: number
+          matricula?: number
+          nome?: string
+          permissao?: number
+          senha?: string
+          telefone?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      log_alunos: {
+        Row: {
+          acao: string
+          cpf: string
+          data_hora: string | null
+          email: string
+          fk_turma: number | null
+          id_aluno: number
+          id_log: number
+          matricula: number
+          nome: string
+          permissao: number
+          telefone: string | null
+        }
+        Insert: {
+          acao: string
+          cpf: string
+          data_hora?: string | null
+          email: string
+          fk_turma?: number | null
+          id_aluno: number
+          id_log?: number
+          matricula: number
+          nome: string
+          permissao: number
+          telefone?: string | null
+        }
+        Update: {
+          acao?: string
+          cpf?: string
+          data_hora?: string | null
+          email?: string
+          fk_turma?: number | null
+          id_aluno?: number
+          id_log?: number
+          matricula?: number
+          nome?: string
+          permissao?: number
+          telefone?: string | null
+        }
+        Relationships: []
+      }
+      log_destinatarios: {
+        Row: {
+          acao: string
+          created_at: string | null
+          data_hora: string | null
+          fk_notificacao: number | null
+          id_destinatarios: number
+          id_log: number
+          id_referencia: number
+          tipo_destinatario: string
+        }
+        Insert: {
+          acao: string
+          created_at?: string | null
+          data_hora?: string | null
+          fk_notificacao?: number | null
+          id_destinatarios: number
+          id_log?: number
+          id_referencia: number
+          tipo_destinatario: string
+        }
+        Update: {
+          acao?: string
+          created_at?: string | null
+          data_hora?: string | null
+          fk_notificacao?: number | null
+          id_destinatarios?: number
+          id_log?: number
+          id_referencia?: number
+          tipo_destinatario?: string
+        }
+        Relationships: []
+      }
+      log_disciplina: {
+        Row: {
+          acao: string
+          data_hora: string | null
+          disciplina: string
+          id_disciplina: number
+          id_log: number
+        }
+        Insert: {
+          acao: string
+          data_hora?: string | null
+          disciplina: string
+          id_disciplina: number
+          id_log?: number
+        }
+        Update: {
+          acao?: string
+          data_hora?: string | null
+          disciplina?: string
+          id_disciplina?: number
+          id_log?: number
+        }
+        Relationships: []
+      }
+      log_disponibilidade: {
+        Row: {
+          acao: string
+          data_hora: string | null
+          fk_recursos: number
+          fk_salas: number
+          id_log: number
+          recurso_disponivel: boolean | null
+        }
+        Insert: {
+          acao: string
+          data_hora?: string | null
+          fk_recursos: number
+          fk_salas: number
+          id_log?: number
+          recurso_disponivel?: boolean | null
+        }
+        Update: {
+          acao?: string
+          data_hora?: string | null
+          fk_recursos?: number
+          fk_salas?: number
+          id_log?: number
+          recurso_disponivel?: boolean | null
+        }
+        Relationships: []
+      }
+      log_horario_escolar: {
+        Row: {
+          data_hora: string | null
+          fk_administrador: number | null
+          fk_disciplina: number | null
+          fk_horarios: number | null
+          fk_professores: number | null
+          fk_salas: number | null
+          fk_turmas: number | null
+          id_horario_escolar: number
+          id_log: number
+          logged_at: string | null
+        }
+        Insert: {
+          data_hora?: string | null
+          fk_administrador?: number | null
+          fk_disciplina?: number | null
+          fk_horarios?: number | null
+          fk_professores?: number | null
+          fk_salas?: number | null
+          fk_turmas?: number | null
+          id_horario_escolar: number
+          id_log?: number
+          logged_at?: string | null
+        }
+        Update: {
+          data_hora?: string | null
+          fk_administrador?: number | null
+          fk_disciplina?: number | null
+          fk_horarios?: number | null
+          fk_professores?: number | null
+          fk_salas?: number | null
+          fk_turmas?: number | null
+          id_horario_escolar?: number
+          id_log?: number
+          logged_at?: string | null
+        }
+        Relationships: []
+      }
+      log_horarios: {
+        Row: {
+          acao: string
+          created_at: string | null
+          data: string
+          data_hora: string | null
+          fk_salas: number | null
+          hora_inicio: string
+          hora_termino: string
+          id_horario: number
+          id_log: number
+        }
+        Insert: {
+          acao: string
+          created_at?: string | null
+          data: string
+          data_hora?: string | null
+          fk_salas?: number | null
+          hora_inicio: string
+          hora_termino: string
+          id_horario: number
+          id_log?: number
+        }
+        Update: {
+          acao?: string
+          created_at?: string | null
+          data?: string
+          data_hora?: string | null
+          fk_salas?: number | null
+          hora_inicio?: string
+          hora_termino?: string
+          id_horario?: number
+          id_log?: number
+        }
+        Relationships: []
+      }
+      log_leciona: {
+        Row: {
+          acao: string
+          data_hora: string | null
+          fk_disciplina: number
+          fk_professor: number
+          id_log: number
+        }
+        Insert: {
+          acao: string
+          data_hora?: string | null
+          fk_disciplina: number
+          fk_professor: number
+          id_log?: number
+        }
+        Update: {
+          acao?: string
+          data_hora?: string | null
+          fk_disciplina?: number
+          fk_professor?: number
+          id_log?: number
+        }
+        Relationships: []
+      }
+      log_notificacoes: {
+        Row: {
+          acao: string
+          created_at: string | null
+          data_hora: string | null
+          data_hora_original: string | null
+          fk_horario_escolar: number | null
+          id_log: number
+          id_notificacao: number
+          mensagem: string
+          tipo: string
+        }
+        Insert: {
+          acao: string
+          created_at?: string | null
+          data_hora?: string | null
+          data_hora_original?: string | null
+          fk_horario_escolar?: number | null
+          id_log?: number
+          id_notificacao: number
+          mensagem: string
+          tipo: string
+        }
+        Update: {
+          acao?: string
+          created_at?: string | null
+          data_hora?: string | null
+          data_hora_original?: string | null
+          fk_horario_escolar?: number | null
+          id_log?: number
+          id_notificacao?: number
+          mensagem?: string
+          tipo?: string
+        }
+        Relationships: []
+      }
+      log_professores: {
+        Row: {
+          acao: string
+          cpf: string
+          data_hora: string | null
+          email: string
+          formacao_docente: string | null
+          id_log: number
+          id_professor: number
+          matricula: number
+          nome: string
+          permissao: number
+          telefone: string | null
+        }
+        Insert: {
+          acao: string
+          cpf: string
+          data_hora?: string | null
+          email: string
+          formacao_docente?: string | null
+          id_log?: number
+          id_professor: number
+          matricula: number
+          nome: string
+          permissao: number
+          telefone?: string | null
+        }
+        Update: {
+          acao?: string
+          cpf?: string
+          data_hora?: string | null
+          email?: string
+          formacao_docente?: string | null
+          id_log?: number
+          id_professor?: number
+          matricula?: number
+          nome?: string
+          permissao?: number
+          telefone?: string | null
+        }
+        Relationships: []
+      }
+      log_recursos: {
+        Row: {
+          acao: string
+          data_hora: string | null
+          id_log: number
+          id_recurso: number
+          tipo_recurso: string
+        }
+        Insert: {
+          acao: string
+          data_hora?: string | null
+          id_log?: number
+          id_recurso: number
+          tipo_recurso: string
+        }
+        Update: {
+          acao?: string
+          data_hora?: string | null
+          id_log?: number
+          id_recurso?: number
+          tipo_recurso?: string
+        }
+        Relationships: []
+      }
+      log_salas: {
+        Row: {
+          acao: string
+          andar: number
+          bloco: string
+          capacidade: number
+          data_hora: string | null
+          id_log: number
+          id_sala: number
+          nome_sala: string
+          tipo_sala: string
+        }
+        Insert: {
+          acao: string
+          andar: number
+          bloco: string
+          capacidade: number
+          data_hora?: string | null
+          id_log?: number
+          id_sala: number
+          nome_sala: string
+          tipo_sala: string
+        }
+        Update: {
+          acao?: string
+          andar?: number
+          bloco?: string
+          capacidade?: number
+          data_hora?: string | null
+          id_log?: number
+          id_sala?: number
+          nome_sala?: string
+          tipo_sala?: string
+        }
+        Relationships: []
+      }
+      log_turmas: {
+        Row: {
+          acao: string
+          agrupamento: string
+          ano: string
+          data_hora: string | null
+          id_log: number
+          id_turma: number
+        }
+        Insert: {
+          acao: string
+          agrupamento: string
+          ano: string
+          data_hora?: string | null
+          id_log?: number
+          id_turma: number
+        }
+        Update: {
+          acao?: string
+          agrupamento?: string
+          ano?: string
+          data_hora?: string | null
+          id_log?: number
+          id_turma?: number
+        }
+        Relationships: []
       }
       notificacoes: {
         Row: {
@@ -473,7 +965,123 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      fn_inserir_destinatarios: {
+        Args: {
+          p_id_notificacao: number
+          p_id_professor: number
+          p_id_turma: number
+        }
+        Returns: undefined
+      }
+      fn_notifica_alteracao: {
+        Args: { p_id_horario_escolar: number }
+        Returns: undefined
+      }
+      fn_notifica_aula_adiada: {
+        Args: {
+          p_id_horario_escolar: number
+          p_nova_data: string
+          p_nova_hora_inicio: string
+          p_nova_hora_termino: string
+        }
+        Returns: undefined
+      }
+      fn_notifica_cancelamento: {
+        Args: { p_id_horario_escolar: number }
+        Returns: undefined
+      }
+      fn_notifica_comunicado: {
+        Args: { p_mensagem_livre: string }
+        Returns: undefined
+      }
+      fn_notifica_evento: {
+        Args: {
+          p_nome_evento: string
+          p_id_sala: number
+          p_data: string
+          p_hora_inicio: string
+          p_hora_termino: string
+        }
+        Returns: undefined
+      }
+      fn_notifica_reserva: {
+        Args: { p_id_horario_escolar: number }
+        Returns: undefined
+      }
+      fn_notifica_substituicao: {
+        Args: {
+          p_id_horario_escolar: number
+          p_professor_antigo: string
+          p_professor_novo: string
+        }
+        Returns: undefined
+      }
+      fn_valida_email: {
+        Args: { p_email: string }
+        Returns: boolean
+      }
+      fn_valida_template_email: {
+        Args: { p_texto: string }
+        Returns: undefined
+      }
+      sp_busca_alunos: {
+        Args: {
+          p_fk_turma?: number
+          p_nome_like?: string
+          p_cpf?: string
+          p_dt_ini?: string
+          p_dt_fim?: string
+        }
+        Returns: {
+          id_aluno: number
+          nome: string
+          cpf: string
+          fk_turma: number
+          created_at: string
+        }[]
+      }
+      sp_busca_horario: {
+        Args: {
+          p_fk_prof?: number
+          p_fk_turma?: number
+          p_fk_sala?: number
+          p_fk_disc?: number
+          p_data_ini?: string
+          p_data_fim?: string
+        }
+        Returns: {
+          id_horario_escolar: number
+          data: string
+          hora_inicio: string
+          hora_termino: string
+          fk_professores: number
+          fk_turmas: number
+          fk_salas: number
+          fk_disciplina: number
+        }[]
+      }
+      sp_busca_horario_restrito: {
+        Args: { p_matricula_professor?: number; p_matricula_aluno?: number }
+        Returns: {
+          id_horario_escolar: number
+          data: string
+          hora_inicio: string
+          hora_termino: string
+          fk_professores: number
+          fk_turmas: number
+          fk_salas: number
+          fk_disciplina: number
+        }[]
+      }
+      sp_busca_notificacoes: {
+        Args: { p_tipo?: string; p_dt_ini?: string; p_dt_fim?: string }
+        Returns: {
+          id_notificacao: number
+          mensagem: string
+          data_hora: string
+          tipo: string
+        }[]
+      }
     }
     Enums: {
       resource_type:
