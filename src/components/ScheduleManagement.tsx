@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -105,6 +106,7 @@ const ScheduleManagement = () => {
       resetForm();
     } catch (error) {
       console.error('Error submitting schedule:', error);
+      setError('Erro ao salvar agendamento. Tente novamente.');
     } finally {
       setSubmitting(false);
     }
